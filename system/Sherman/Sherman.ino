@@ -2,8 +2,10 @@
 #include <PN532_I2C.h>
 #include <PN532.h>
 #include <NfcAdapter.h>
+#include <avr/sleep.h>
 
 #define PUMP_PIN 13;
+#define interruptPin 2;
 
 PN532_I2C pn532i2c(Wire);
 PN532 nfc(pn532i2c);
@@ -67,7 +69,22 @@ void change_config(uint8_t mode, uint16_t watering_interval, uint8_t watering_ti
 {
   
 }
-
+void sleep()
+{
+  sleep_enable();
+  attachInterrupt(0,wake_up,CHANGE);
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(1000);
+  sleep_cpu();
+  digitalWrite(LED_BUILTIN, HIGH);
+}
+void wake_up()
+{
+  Serial.println("Interrupt called. Arduino will wake up.");
+  sleep_disable();
+  detachInterrupt(0);
+}
 void setup(void) 
 {  
   Serial.begin(115200);
@@ -91,6 +108,10 @@ void setup(void)
   // configure board to read RFID tags
   nfc.SAMConfig();
   Serial.println("Waiting for an ISO14443A card");
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(interruptPin, INPUT_PULLUP);
+  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void loop(void)
@@ -102,10 +123,11 @@ void loop(void)
    {
       //start doing things
       process_message(); 
-      change_config(mode,watering_interval_watering_time);
+      change_config(mode,watering_interval,watering_time);
+      sleep();
    }
    else
    {
-      //do nothing
+      sleep();
    }  
 }
