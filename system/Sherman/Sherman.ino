@@ -3,9 +3,15 @@
 #include <PN532.h>
 #include <NfcAdapter.h>
 
+#define PUMP_PIN 13;
+
 PN532_I2C pn532i2c(Wire);
 PN532 nfc(pn532i2c);
-int read_message()
+uint8_t message[]={0,0,0,0,0,0,0};
+uint8_t message_length = 0;
+uint8_t mode, watering_time,watering_interval;
+
+void read_message()
 {
   boolean success;
   uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
@@ -32,12 +38,15 @@ int read_message()
     if(payload == 0xF )  //first 2 bytes from received tag should be 0x06 0x09; this is the value set by out app in the tag 
     {
       Serial.print("Received tag from irrigation system app.");
-      return 1;
+      for (uint8_t i=0; i < uidLength; i++) 
+      {
+        message[i] = uid[i];      
+      }
+      message_length = uidLength;
     }
     else
     {
       Serial.print("Received tag from unknown device"); 
-      return 0;
     }
     Serial.println("");
     
@@ -48,9 +57,17 @@ int read_message()
   {
     // PN532 probably timed out waiting for a card
     Serial.println("Waiting for a device...");
-    return 0;
   }
 }
+void process_message()
+{
+  
+}
+void change_config(uint8_t mode, uint16_t watering_interval, uint8_t watering_time)
+{
+  
+}
+
 void setup(void) 
 {  
   Serial.begin(115200);
@@ -78,7 +95,17 @@ void setup(void)
 
 void loop(void)
 {
-  uint8_t tag_from_app;
-  tag_from_app = read_message();
-  
+   uint8_t message[]={0,0,0,0,0,0,0};
+   uint8_t message_length = 0;
+   read_message();
+   if(message_length != 0)
+   {
+      //start doing things
+      process_message(); 
+      change_config(mode,watering_interval_watering_time);
+   }
+   else
+   {
+      //do nothing
+   }  
 }
