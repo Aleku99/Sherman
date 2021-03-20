@@ -1,11 +1,21 @@
+/*
+ Modes:
+ 1. Dupa senzorul de umiditate
+ 2. Din interval in interval
+ 3. Zilnic la o anumita ora (use Time.h)
+Wakeup
+1. When RFID sends new message
+2. Every time Arduino has to water the plants
+ */
 #include <Wire.h>
 #include <PN532_I2C.h>
 #include <PN532.h>
 #include <NfcAdapter.h>
 #include <avr/sleep.h>
+#include <avr/wdt.h>
 
-#define PUMP_PIN 13;
-#define interruptPin 2;
+#define PUMP_PIN 13
+#define interruptPin 2
 
 PN532_I2C pn532i2c(Wire);
 PN532 nfc(pn532i2c);
@@ -72,27 +82,59 @@ void change_config(uint8_t mode, uint16_t watering_interval, uint8_t watering_ti
 void sleep()
 {
   sleep_enable();
-  attachInterrupt(0,wake_up,CHANGE);
+  attachInterrupt(0,wake_up,LOW); //when NDEF message is received, wakeup Arduino; PIN D2 is used as interrupt pin
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   digitalWrite(LED_BUILTIN, LOW);
   delay(1000);
-  sleep_cpu();
-  digitalWrite(LED_BUILTIN, HIGH);
+  sleep_cpu(); //sleep will stop after 8 seconds (WD will reset the MCU)
+  //program continues execution from here after wakeup
+  test(2);
 }
 void wake_up()
 {
-  Serial.println("Interrupt called. Arduino will wake up.");
+  Serial.write("Interrupt called. Arduino will wake up.");
   sleep_disable();
   detachInterrupt(0);
+}
+void test(int number)
+{
+  switch(number)
+  {
+    case 1: {
+      digitalWrite(13, HIGH);
+      delay(500);
+      digitalWrite(13, LOW);
+      delay(500);
+      digitalWrite(13, HIGH);
+      delay(500);
+      break;
+      }
+      case 2:{digitalWrite(13, HIGH);
+      delay(1000);
+      digitalWrite(13, LOW);
+      delay(1000);
+      digitalWrite(13, HIGH);
+      delay(1000);
+      break;
+      }
+      default: break;
+    }
 }
 void setup(void) 
 {  
   Serial.begin(115200);
-  Serial.println("Hello!");
-  nfc.begin();
+  //WDT setup
+  MCUSR &= ~(1<<WDRF);
+  WDTCSR |= (1<<WDCE) | (1<<WDE);
+  WDTCSR = 1<<WDP0 | 1<<WDP3; //8 seconds, max time
+  WDTCSR |= _BV(WDIE);
+  
+  Serial.println("Initialising");
+  /*nfc.begin();*/
 
-  uint32_t versiondata = nfc.getFirmwareVersion();
-  if (! versiondata) 
+  /*uint32_t versiondata = nfc.getFirmwareVersion();*/
+  //commented to test sleep mode 
+  /*if (! versiondata) 
   {
     Serial.print("Didn't find PN53x board");
     while (1); // halt
@@ -100,25 +142,26 @@ void setup(void)
   // Got ok data, print it out!
   Serial.print("Found chip PN5"); Serial.println((versiondata>>24) & 0xFF, HEX); 
   Serial.print("Firmware ver. "); Serial.print((versiondata>>16) & 0xFF, DEC); 
-  Serial.print('.'); Serial.println((versiondata>>8) & 0xFF, DEC);
+  Serial.print('.'); Serial.println((versiondata>>8) & 0xFF, DEC);*/
   // Set the max number of retry attempts to read from a card
   // This prevents us from waiting forever for a card, which is
   // the default behaviour of the PN532.
-  nfc.setPassiveActivationRetries(0xFF);
+  /*nfc.setPassiveActivationRetries(0xFF);*/
   // configure board to read RFID tags
-  nfc.SAMConfig();
-  Serial.println("Waiting for an ISO14443A card");
+  /*nfc.SAMConfig();
+  Serial.println("Waiting for an ISO14443A card");*/
 
+  //configure interrupt pin
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(interruptPin, INPUT_PULLUP);
-  digitalWrite(LED_BUILTIN, HIGH);
+  //test(1);
 }
 
 void loop(void)
 {
    uint8_t message[]={0,0,0,0,0,0,0};
    uint8_t message_length = 0;
-   read_message();
+   //read_message();
    if(message_length != 0)
    {
       //start doing things
