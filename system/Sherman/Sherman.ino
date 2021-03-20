@@ -124,10 +124,10 @@ void setup(void)
 {  
   Serial.begin(115200);
   //WDT setup
-  MCUSR &= ~(1<<WDRF);
-  WDTCSR |= (1<<WDCE) | (1<<WDE);
-  WDTCSR = 1<<WDP0 | 1<<WDP3; //8 seconds, max time
-  WDTCSR |= _BV(WDIE);
+  MCUSR &= ~(1<<WDRF); //clear reset flag
+  WDTCSR |= (1<<WDCE) | (1<<WDE); //watchdog change enable
+  WDTCSR = 1<<WDP0 | 1<<WDP3; //set WD timeout to 8 seconds, max time :(
+  WDTCSR |= (1<<WDIE); 
   
   Serial.println("Initialising");
   /*nfc.begin();*/
@@ -154,7 +154,7 @@ void setup(void)
   //configure interrupt pin
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(interruptPin, INPUT_PULLUP);
-  //test(1);
+  test(1);
 }
 
 void loop(void)
