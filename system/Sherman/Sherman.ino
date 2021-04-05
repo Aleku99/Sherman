@@ -13,6 +13,7 @@ Wakeup
 #include <NfcAdapter.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>
+#include <EEPROM.h>
 
 #define PUMP_PIN 13
 #define interruptPin 2
@@ -22,7 +23,7 @@ PN532 nfc(pn532i2c);
 uint8_t message[]={0,0,0,0,0,0,0};
 uint8_t message_length = 0;
 uint8_t mode, watering_time,watering_interval;
-
+uint8_t new_config = 0;
 void read_message()
 {
   boolean success;
@@ -73,14 +74,21 @@ void read_message()
 }
 void process_message()
 {
-  
+  new_config = 1;
 }
 void change_config(uint8_t mode, uint16_t watering_interval, uint8_t watering_time)
 {
   
 }
-void sleep()
+void sleep()   //needs to put configuration variables in EEPROM, so it can use them at a later time
 {
+  if(new_config == 1)
+  {
+    EEPROM.write(0,mode);
+    EEPROM.write(1, watering_interval);
+    EEPROM.write(2, watering_time);
+    EEPROM.write(3, new_config);
+  }
   sleep_enable();
   attachInterrupt(0,wake_up,LOW); //when NDEF message is received, wakeup Arduino; PIN D2 is used as interrupt pin
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
@@ -95,6 +103,13 @@ void wake_up()
   Serial.write("Interrupt called. Arduino will wake up.");
   sleep_disable();
   detachInterrupt(0);
+  new_config = EEPROM.read(3);
+  if(new_config == 1)
+  {
+    mode = EEPROM.read(0);
+    watering_interval = EEPROM.read(1);
+    watering_time = EEPROM.read(2);
+  }
 }
 void test(int number)
 {
@@ -155,6 +170,13 @@ void setup(void)
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(interruptPin, INPUT_PULLUP);
   test(1);
+  new_config = EEPROM.read(3);
+  if(new_config == 1)
+  {
+    mode = EEPROM.read(0);
+    watering_interval = EEPROM.read(1);
+    watering_time = EEPROM.read(2);
+  }
 }
 
 void loop(void)
@@ -170,7 +192,7 @@ void loop(void)
       sleep();
    }
    else
-   {
+   {  
       sleep();
    }  
 }
