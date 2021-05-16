@@ -1,155 +1,143 @@
-/*
- Modes:
- 1. Dupa senzorul de umiditate
- 2. Din interval in interval
- 3. Zilnic la o anumita ora (use Time.h)
-Wakeup
-1. When RFID sends new message
-2. Every time Arduino has to water the plants
- */
 #include <Wire.h>
 #include <PN532_I2C.h>
 #include <PN532.h>
 #include <NfcAdapter.h>
-#include <avr/sleep.h>
-#include <avr/wdt.h>
-#include <EEPROM.h>
 
-#define PUMP_PIN 13
-#define interruptPin 2
+#define PUMP_PIN 8
+#define BUTTON_PIN 3
+#define ONE_SECOND 1000
+
+enum mode_type {Timer, Sensor};
 
 PN532_I2C pn532i2c(Wire);
 PN532 nfc(pn532i2c);
-uint8_t message[]={0,0,0,0,0,0,0};
-uint8_t message_length = 0;
-uint8_t mode, watering_time,watering_interval;
-uint8_t new_config = 0;
+uint8_t  watering_time = 2; //in seconds
+mode_type mode = Timer;
+uint32_t current_time = 0;  //in seconds; I need to be able to delay the crazy_loop() for only 1 second 
+uint32_t watering_interval  = 2; //in hours; for demo it will be minutes
+uint16_t humidity_level; 
+NfcAdapter nfc2 = NfcAdapter(pn532i2c); 
+NdefMessage msg; 
+NdefRecord rcd;
+byte payload_array[100];
+int payload_length = 0;
+volatile int interrupt_called; //used like a flag to be able to create new config
+
+
 void read_message()
-{
-  boolean success;
-  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
-  uint8_t uidLength;                        // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+{ 
   
-  // Wait for an ISO14443A type cards (Mifare, etc.).  When one is found
-  // 'uid' will be populated with the UID, and uidLength will indicate
-  // if the uid is 4 bytes (Mifare Classic) or 7 bytes (Mifare Ultralight)
-  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &uid[0], &uidLength);
-  if (success) 
+  if (nfc2.tagPresent()) 
   {
-    Serial.println("Found an NFC device!");
-    Serial.print("UID Length: ");Serial.print(uidLength, DEC);Serial.println(" bytes");
-    Serial.print("UID Value: ");
-    uint8_t  payload;
-    for (uint8_t i=0; i < uidLength; i++) 
-    {
-      Serial.print(" 0x");Serial.print(uid[i], HEX);       
-      //Serial.print(" ");Serial.print(uid[i], HEX);       
-      //hex_value += (String)uid[i];
-    }
-    payload = uid[0]+uid[1];  
-    //Serial.println(", value="+hex_value);
-    if(payload == 0xF )  //first 2 bytes from received tag should be 0x06 0x09; this is the value set by out app in the tag 
-    {
-      Serial.print("Received tag from irrigation system app.");
-      for (uint8_t i=0; i < uidLength; i++) 
+      NfcTag tag = nfc2.read();
+      tag.print();
+      msg = tag.getNdefMessage();
+      rcd = msg.getRecord(0);
+      rcd.getPayload(payload_array);
+      
+      if(payload_array[3]=='6' && payload_array[4]=='9')  //first 2 bytes from NDEF should be 6 and 9
       {
-        message[i] = uid[i];      
+        payload_length = rcd.getPayloadLength();
+        Serial.println("Received tag from irrigation system app");
+        process_message();
       }
-      message_length = uidLength;
-    }
-    else
-    {
-      Serial.print("Received tag from unknown device"); 
-    }
-    Serial.println("");
-    
-    // Wait 1 second before continuing
-    delay(1000);
+      else if(payload_array[3]=='7' && payload_array[4]=='0')
+      {
+        payload_length = rcd.getPayloadLength();
+        Serial.println("Received tag from irrigation system app");
+        process_message();
+      }
+      else
+      {
+        Serial.println("Received tag from unknown device"); 
+      }
+      
+      delay(1000);
   }
   else
   {
-    // PN532 probably timed out waiting for a card
-    Serial.println("Waiting for a device...");
+      // PN532 probably timed out waiting for a card
+      Serial.println("Waiting for a device...");
   }
+  
 }
 void process_message()
 {
-  new_config = 1;
+  /*
+   Message structure:
+   payload_array[3] & payload_array[4]: used for recognising app and mode 
+   payload_array[5] & payload_arrayoad[6]: used for watering_interval
+   payload_array[7]: used for watering time
+   */
+  uint32_t temp_watering_interval, temp_watering_time, temp_mode;
+
+  //temp_watering_interval = ((payload_array[5] - 48) * 10 + (payload_array[6] - 48)) * 60  ; //received in hours
+  temp_watering_interval = ((payload_array[5] - 48) * 10 + (payload_array[6] - 48))   ; //received in minutes, for demo only
+  temp_watering_time = payload_array[7] - 48; //received in seconds
+  temp_mode = (payload_array[3]=='7'); 
+  change_config(temp_mode, temp_watering_interval, temp_watering_time);
 }
-void change_config(uint8_t mode, uint16_t watering_interval, uint8_t watering_time)
+
+void change_config(uint8_t i_mode, uint32_t i_watering_interval, uint8_t i_watering_time)
 {
-  
+  mode = i_mode;
+  watering_interval = i_watering_interval;
+  watering_time = i_watering_time;
+  current_time = 0;
+  Serial.print("watering_interval = ");
+  Serial.println(watering_interval);
+  Serial.print("watering_time = ");
+  Serial.println(watering_time);
+  Serial.print("mode = ");
+  Serial.println(mode);
 }
-void sleep()   //needs to put configuration variables in EEPROM, so it can use them at a later time
+
+void crazy_loop()
 {
-  if(new_config == 1)
+  Serial.println(current_time);
+  if(mode == Timer)
   {
-    EEPROM.write(0,mode);
-    EEPROM.write(1, watering_interval);
-    EEPROM.write(2, watering_time);
-    EEPROM.write(3, new_config);
-  }
-  sleep_enable();
-  attachInterrupt(0,wake_up,LOW); //when NDEF message is received, wakeup Arduino; PIN D2 is used as interrupt pin
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-  digitalWrite(LED_BUILTIN, LOW);
-  delay(1000);
-  sleep_cpu(); //sleep will stop after 8 seconds (WD will reset the MCU)
-  //program continues execution from here after wakeup
-  test(2);
-}
-void wake_up()
-{
-  Serial.write("Interrupt called. Arduino will wake up.");
-  sleep_disable();
-  detachInterrupt(0);
-  new_config = EEPROM.read(3);
-  if(new_config == 1)
-  {
-    mode = EEPROM.read(0);
-    watering_interval = EEPROM.read(1);
-    watering_time = EEPROM.read(2);
-  }
-}
-void test(int number)
-{
-  switch(number)
-  {
-    case 1: {
-      digitalWrite(13, HIGH);
-      delay(500);
-      digitalWrite(13, LOW);
-      delay(500);
-      digitalWrite(13, HIGH);
-      delay(500);
-      break;
-      }
-      case 2:{digitalWrite(13, HIGH);
-      delay(1000);
-      digitalWrite(13, LOW);
-      delay(1000);
-      digitalWrite(13, HIGH);
-      delay(1000);
-      break;
-      }
-      default: break;
+    if(current_time  >= (watering_interval * 60 * ONE_SECOND))
+    {
+      water();
+      current_time = ONE_SECOND;  
     }
+    else
+    {
+      current_time = current_time + ONE_SECOND;;  
+    }
+  }
+  else if(mode == Sensor)
+  {
+    if(humidity_level < 400)
+    {
+      water();  
+    }
+  }
+  delay(ONE_SECOND);
+}
+void water()
+{
+  digitalWrite(PUMP_PIN, LOW);
+  delay(watering_time * ONE_SECOND);
+  digitalWrite(PUMP_PIN,HIGH);
+
+}
+void ISR_button()
+{
+  interrupt_called = 1;
 }
 void setup(void) 
 {  
   Serial.begin(115200);
-  //WDT setup
-  MCUSR &= ~(1<<WDRF); //clear reset flag
-  WDTCSR |= (1<<WDCE) | (1<<WDE); //watchdog change enable
-  WDTCSR = 1<<WDP0 | 1<<WDP3; //set WD timeout to 8 seconds, max time :(
-  WDTCSR |= (1<<WDIE); 
-  
-  Serial.println("Initialising");
-  /*nfc.begin();*/
 
-  /*uint32_t versiondata = nfc.getFirmwareVersion();*/
+  Serial.println("Initialising");
+  nfc.begin();
+
+  uint32_t versiondata = nfc.getFirmwareVersion();
+  Serial.println(versiondata);
   //commented to test sleep mode 
-  /*if (! versiondata) 
+  if (! versiondata) 
   {
     Serial.print("Didn't find PN53x board");
     while (1); // halt
@@ -157,42 +145,33 @@ void setup(void)
   // Got ok data, print it out!
   Serial.print("Found chip PN5"); Serial.println((versiondata>>24) & 0xFF, HEX); 
   Serial.print("Firmware ver. "); Serial.print((versiondata>>16) & 0xFF, DEC); 
-  Serial.print('.'); Serial.println((versiondata>>8) & 0xFF, DEC);*/
+  Serial.print('.'); Serial.println((versiondata>>8) & 0xFF, DEC);
   // Set the max number of retry attempts to read from a card
   // This prevents us from waiting forever for a card, which is
   // the default behaviour of the PN532.
-  /*nfc.setPassiveActivationRetries(0xFF);*/
+  nfc.setPassiveActivationRetries(0xFF);
   // configure board to read RFID tags
-  /*nfc.SAMConfig();
-  Serial.println("Waiting for an ISO14443A card");*/
+  nfc.SAMConfig();
+  Serial.println("Waiting for an ISO14443A card");
 
   //configure interrupt pin
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(interruptPin, INPUT_PULLUP);
-  test(1);
-  new_config = EEPROM.read(3);
-  if(new_config == 1)
-  {
-    mode = EEPROM.read(0);
-    watering_interval = EEPROM.read(1);
-    watering_time = EEPROM.read(2);
-  }
+   pinMode(BUTTON_PIN, INPUT_PULLUP);
+   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN),ISR_button,FALLING);
+
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(PUMP_PIN, HIGH);
+  interrupt_called = 0;
 }
 
 void loop(void)
 {
-   uint8_t message[]={0,0,0,0,0,0,0};
-   uint8_t message_length = 0;
-   //read_message();
-   if(message_length != 0)
-   {
-      //start doing things
-      process_message(); 
-      change_config(mode,watering_interval,watering_time);
-      sleep();
-   }
-   else
-   {  
-      sleep();
-   }  
+  if(interrupt_called == 1)
+  {
+     read_message();
+     interrupt_called = 0;
+  }
+  else
+  {
+    crazy_loop(); 
+  } 
 }
