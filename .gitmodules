@@ -1,3 +1,0 @@
-[submodule "ShermanApp/libnfc"]
-	path = ShermanApp/libnfc
-	url = https://github.com/nfc-tools/libnfc.git
