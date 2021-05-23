@@ -128,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
         writingTagFilters = new IntentFilter[] { tagDetected };
     }
 
-    private String generateConfig()
+    protected String generateConfig()
     {
         String return_string = "";
         return_string += humidity_switch.isChecked() ? "70" : "69";
