@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/water_interval"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <Switch
+        android:id="@+id/humidity_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="left"
+        android:layout_marginLeft="10dp"
+        android:layout_marginBottom="35dp"
+        android:layout_marginTop="10dp"
+        android:text="Use humidity sensor                  "
+        android:textSize="24sp" />
+
+    <TextView
+        android:id="@+id/watering_interval_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="left"
+        android:layout_marginLeft="10dp"
+        android:text="Watering interval: 2 h"
+        android:textColor="#000000"
+        android:textSize="24sp"></TextView>
+
+    <SeekBar
+        android:id="@+id/watering_interval_seekbar"
+        android:layout_width="180dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginLeft="15dp"
+        android:layout_marginTop="15dp"
+        android:layout_marginRight="15dp"
+        android:max="9"
+        android:progress="5"
+        android:scaleX="2"
+        android:scaleY="2" />
+
+    <TextView
+        android:id="@+id/watering_time_text"
+        android:layout_width= "wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="left"
+        android:layout_marginLeft="10dp"
+        android:text="Watering time: 5 s"
+        android:textColor="#000000"
+        android:textSize="24sp">
+    </TextView>
+
+    <SeekBar
+        android:id="@+id/watering_time_seekbar"
+        android:layout_width="180dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginLeft="15dp"
+        android:layout_marginTop="15dp"
+        android:layout_marginRight="15dp"
+        android:max="7"
+        android:progress="3"
+        android:scaleX="2"
+        android:scaleY="2" />
+
+    <Button
+        android:id="@+id/ActivateButton"
+        android:layout_width="130dp"
+        android:layout_height="70dp"
+        android:layout_gravity="center"
+        android:layout_marginTop="250dp"
+        android:text="Activate Tag"
+        android:textColor="#000000" />
+
+</LinearLayout>

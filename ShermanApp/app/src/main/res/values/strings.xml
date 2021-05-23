@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">ShermanApp</string>
+    <string name="button_name">Activate Tag</string>
+    <string name="text_placeholder"></string>
+</resources>
