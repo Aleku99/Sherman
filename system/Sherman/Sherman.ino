@@ -13,8 +13,10 @@ PN532_I2C pn532i2c(Wire);
 PN532 nfc(pn532i2c);
 uint8_t  watering_time = 2; //in seconds
 mode_type mode = Timer;
-uint32_t current_time = 0;  //in seconds; I need to be able to delay the crazy_loop() for only 1 second 
-uint32_t watering_interval  = 2; //in hours; for demo it will be minutes
+uint32_t current_time = 0;  //in seconds;
+uint32_t watering_interval = 1; //in minutes
+uint32_t intervals_array[10] = {1, 5, 15, 30, 60, 120, 240, 480, 960, 1400}; //minutes 
+uint32_t watertime_array[10] = {1, 2, 3, 5, 8, 10, 15, 30}; //seconds
 uint16_t humidity_level; 
 NfcAdapter nfc2 = NfcAdapter(pn532i2c); 
 NdefMessage msg; 
@@ -52,6 +54,7 @@ void read_message()
         Serial.println("Received tag from unknown device"); 
       }
       
+      interrupt_called = 0;
       delay(1000);
   }
   else
@@ -66,14 +69,13 @@ void process_message()
   /*
    Message structure:
    payload_array[3] & payload_array[4]: used for recognising app and mode 
-   payload_array[5] & payload_arrayoad[6]: used for watering_interval
-   payload_array[7]: used for watering time
+   payload_array[5] : used for watering_interval
+   payload_array[6]: used for watering time
    */
   uint32_t temp_watering_interval, temp_watering_time, temp_mode;
 
-  //temp_watering_interval = ((payload_array[5] - 48) * 10 + (payload_array[6] - 48)) * 60  ; //received in hours
-  temp_watering_interval = ((payload_array[5] - 48) * 10 + (payload_array[6] - 48))   ; //received in minutes, for demo only
-  temp_watering_time = payload_array[7] - 48; //received in seconds
+  temp_watering_interval =  intervals_array[payload_array[5] - 48]; 
+  temp_watering_time = watertime_array[payload_array[6] - 48]; 
   temp_mode = (payload_array[3]=='7'); 
   change_config(temp_mode, temp_watering_interval, temp_watering_time);
 }
@@ -100,7 +102,7 @@ void crazy_loop()
     if(current_time  >= (watering_interval * 60 * ONE_SECOND))
     {
       water();
-      current_time = ONE_SECOND;  
+      current_time = ONE_SECOND + watering_time * ONE_SECOND;  
     }
     else
     {
@@ -121,7 +123,8 @@ void water()
   digitalWrite(PUMP_PIN, LOW);
   delay(watering_time * ONE_SECOND);
   digitalWrite(PUMP_PIN,HIGH);
-
+  delay(ONE_SECOND);
+  interrupt_called = 0;
 }
 void ISR_button()
 {
@@ -168,10 +171,10 @@ void loop(void)
   if(interrupt_called == 1)
   {
      read_message();
-     interrupt_called = 0;
   }
   else
   {
     crazy_loop(); 
   } 
+  
 }
