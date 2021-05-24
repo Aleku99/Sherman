@@ -1,4 +1,4 @@
 # Sherman
-Automated flower irrigation system with NFC control
+Automated flower irrigation system with NFC control.
 
-TODO: Add tests
+https://aleku99.github.io/Sherman-1/
