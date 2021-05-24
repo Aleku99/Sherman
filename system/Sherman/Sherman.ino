@@ -26,6 +26,14 @@ int payload_length = 0;
 volatile int interrupt_called; //used like a flag to be able to create new config
 
 
+/************TEST***************/
+void test_config()
+{
+  if(current_time == (60 * ONE_SECOND * watering_interval)) Serial.println("Water interval configuration works.");
+  else Serial.println("Unexpected call of water function. (Interval length was not reached)");
+}
+/*******************************/
+
 void read_message()
 { 
   
@@ -120,6 +128,7 @@ void crazy_loop()
 }
 void water()
 {
+  test_config();
   digitalWrite(PUMP_PIN, LOW);
   delay(watering_time * ONE_SECOND);
   digitalWrite(PUMP_PIN,HIGH);
